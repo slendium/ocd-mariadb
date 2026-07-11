@@ -1,0 +1,19 @@
+{
+	"name": "slendium/ocd-mariadb",
+	"description": "MariaDB implementation of slendium/ocd.",
+	"type": "library",
+	"require": {
+		"php": "^8.5"
+	},
+	"require-dev": {
+		"phpstan/phpstan": "^2.2",
+		"phpunit/phpunit": "^13.2"
+	},
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "C. Fahner",
+			"email": "cfahner.git.ixuk9phi@slendium.org"
+		}
+	]
+}
