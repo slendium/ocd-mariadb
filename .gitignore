@@ -1,1 +1,3 @@
 vendor/
+phpunit-dbconfig.php
+.phpunit.result.cache

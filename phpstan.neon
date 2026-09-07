@@ -1,0 +1,8 @@
+parameters:
+	level: max
+	phpVersion: 80500
+	bootstrapFiles:
+		- vendor/autoload.php
+	paths:
+		- src
+		- tests

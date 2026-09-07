@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="phpunit-bootstrap.php" colors="true">
+	<testsuites>
+		<testsuite name="Tests for MariaDB implementation of Slendium OCD">
+			<directory>tests</directory>
+		</testsuite>
+	</testsuites>
+	<source ignoreSelfDeprecations="true">
+		<include>
+			<directory>src</directory>
+		</include>
+	</source>
+</phpunit>

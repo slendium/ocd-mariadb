@@ -3,13 +3,20 @@
 	"description": "MariaDB implementation of slendium/ocd.",
 	"type": "library",
 	"require": {
-		"php": "^8.5"
+		"php": "^8.5",
+		"slendium/ocd": "^0.1"
 	},
 	"require-dev": {
 		"phpstan/phpstan": "^2.2",
 		"phpunit/phpunit": "^13.2"
 	},
 	"license": "MIT",
+	"autoload": { "psr-4": {
+		"Slendium\\OcdMariaDb\\": "src/"
+	} },
+	"autoload-dev": { "psr-4": {
+		"Slendium\\OcdMariaDbTests\\": "tests/"
+	} },
 	"authors": [
 		{
 			"name": "C. Fahner",
