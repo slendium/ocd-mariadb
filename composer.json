@@ -4,6 +4,7 @@
 	"type": "library",
 	"require": {
 		"php": "^8.5",
+		"ext-pdo_mysql": "*",
 		"slendium/ocd": "^0.1"
 	},
 	"require-dev": {

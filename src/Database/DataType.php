@@ -17,7 +17,7 @@ enum DataType : string {
 
 	case Int = 'int';
 
-	case Decimal = 'decimal';
+	case Double = 'double';
 
 	case VarChar = 'varchar';
 
@@ -28,7 +28,7 @@ enum DataType : string {
 	public static function fromStorageClass(StorageClass $storageClass): self {
 		return match($storageClass) {
 			StorageClass::String => self::VarChar,
-			StorageClass::Float => self::Decimal,
+			StorageClass::Float => self::Double,
 			StorageClass::Int => self::Int,
 			StorageClass::Bool => self::TinyInt
 		};

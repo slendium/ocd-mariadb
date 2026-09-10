@@ -99,12 +99,17 @@ final readonly class ColumnDefinition {
 		if ($this->isUnsigned) {
 			$out .= ' UNSIGNED';
 		}
+
 		$out .= $this->isNullable
 			? ' NULL'
 			: ' NOT NULL';
+
 		if (\is_scalar($this->defaultValue)) {
 			$out .= " DEFAULT '{$this->defaultValue}'";
+		} else if ($this->type === DataType::Uuid) {
+			$out .= ' DEFAULT UUID()';
 		}
+
 		if ($this->isAutoIncrement) {
 			$out .= ' AUTO_INCREMENT';
 		}

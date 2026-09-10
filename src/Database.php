@@ -6,7 +6,7 @@ use Override;
 use PDO;
 use SensitiveParameter;
 
-use Slendium\Ocd\Collection;
+use Slendium\Ocd\Collection as ICollection;
 use Slendium\Ocd\Database as IDatabase;
 use Slendium\Ocd\Schema;
 
@@ -25,8 +25,18 @@ final class Database implements IDatabase {
 		string $database,
 		#[SensitiveParameter] ?string $username = null,
 		#[SensitiveParameter] ?string $password = null,
+		?int $port = null,
+		string $charset = 'utf8mb4',
 	) {
-		$this->pdo = PDO::connect("mysql:host=$host;dbname=$database;charset=utf8mb4", $username, $password);
+		$dsn = "mysql:host=$host;dbname=$database;charset=$charset";
+		if ($port !== null) {
+			$dsn .= ";port=$port";
+		}
+		$this->pdo = PDO::connect($dsn, $username, $password, [
+			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+			PDO::ATTR_EMULATE_PREPARES => false,
+		]);
 	}
 
 	#[Override]
@@ -36,16 +46,19 @@ final class Database implements IDatabase {
 
 	#[Override]
 	public function listCollections(): iterable {
-		throw new \Exception('Not implemented');
+		foreach ($this->pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN, column: 0) as $name) { // @phpstan-ignore method.nonObject
+			/** @var non-empty-string $name */
+			yield $name => new Collection($this->pdo, $name);
+		}
 	}
 
 	#[Override]
-	public function getCollection(string $collection): Collection {
-		throw new \Exception('Not implemented');
+	public function getCollection(string $collection): ICollection {
+		return new Collection($this->pdo, $collection);
 	}
 
 	#[Override]
-	public function deleteCollection(string $collection): Collection {
+	public function deleteCollection(string $collection): ICollection {
 		$this->pdo->query("DROP TABLE $collection");
 		throw new \Exception('Not implemented');
 	}
