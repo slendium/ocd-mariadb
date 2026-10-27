@@ -2,7 +2,7 @@
 
 namespace Slendium\OcdMariaDb\Database;
 
-use Exception;
+use Closure;
 
 use Slendium\Ocd\Database\UpgradeOptions;
 
@@ -45,7 +45,7 @@ final class AlterTableBuilder {
 			$this->alterColumn($columnDiff);
 		}
 
-		if ($this->upgradeOptions->allowDrop) {
+		if ($this->upgradeOptions->allowLoss) {
 			foreach ($diff->drops as $columnName) {
 				$this->dropColumns[] = "DROP COLUMN `$columnName`";
 			}
@@ -73,26 +73,25 @@ final class AlterTableBuilder {
 		yield "ALTER TABLE {$this->table} ".\implode(', ', $alterSpecs);
 	}
 
-	private function alterColumn(ColumnDifference $difference): void {
-		if ($difference->isTypeChange) {
-			throw new Exception('Field type changes have not yet been implemented');
+	private function alterColumn(ColumnDifference $diff): void {
+		if ($diff->isTypeChange) {
+			throw new \Exception('Not implemented');
 		}
 
-		if ($difference->isTruncation) {
-			$this->truncateColumn($difference);
-		} else {
-			$this->modifyColumns[] = $difference->columnAfter->toModifySql();
-		}
-	}
-
-	private function truncateColumn(ColumnDifference $diff): void {
-		if ($this->upgradeOptions->allowTruncate) {
-			$chars = $diff->columnAfter->characterCount ?? 255;
-			$this->truncateColumns[] = "UPDATE {$this->table} SET `{$diff->name}` = LEFT(`{$diff->name}`, {$chars})";
+		if (!$diff->isDataLoss) {
 			$this->modifyColumns[] = $diff->columnAfter->toModifySql();
-		} else {
-			$this->modifyColumns[] = $diff->columnAfter->toModifySql($diff->columnBefore->characterCount);
+			return;
 		}
+
+		if (!$this->upgradeOptions->allowLoss) {
+			return;
+		}
+
+		if ($diff->columnAfter->type instanceof DataType\Textual) {
+			$chars = $diff->columnAfter->type->characterLimit;
+			$this->truncateColumns[] = "UPDATE {$this->table} SET `{$diff->name}` = LEFT(`{$diff->name}`, {$chars})";
+		}
+		$this->modifyColumns[] = $diff->columnAfter->toModifySql();
 	}
 
 }

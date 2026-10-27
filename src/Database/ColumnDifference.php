@@ -16,11 +16,11 @@ final class ColumnDifference {
 	}
 
 	public bool $isTypeChange {
-		get => $this->type !== null && $this->type->before !== $this->type->after;
+		get => $this->type !== null && $this->type->before::class !== $this->type->after::class;
 	}
 
-	public bool $isTruncation {
-		get => $this->characterCount !== null && $this->characterCount->before > $this->characterCount->after;
+	public bool $isDataLoss {
+		get => $this->type !== null && !$this->type->before->fitsIn($this->type->after);
 	}
 
 	public static function tryCreate(ColumnDefinition $before, ColumnDefinition $after): ?self {
@@ -30,7 +30,7 @@ final class ColumnDifference {
 
 		$construct = [ ];
 
-		if ($before->type !== $after->type) {
+		if ($before->type->toSql() !== $after->type->toSql()) {
 			$construct['type'] = new Change($before->type, $after->type);
 		}
 
@@ -40,13 +40,6 @@ final class ColumnDifference {
 
 		if ($before->defaultValue !== $after->defaultValue) {
 			$construct['defaultValue'] = new Change($before->defaultValue, $after->defaultValue);
-		}
-
-		if ($before->type === DataType::VarChar
-			&& $after->type === DataType::VarChar
-			&& $before->characterCount !== $after->characterCount
-		) {
-			$construct['characterCount'] = new Change($before->characterCount, $after->characterCount);
 		}
 
 		if ($before->isUnsigned !== $after->isUnsigned) {
@@ -59,6 +52,10 @@ final class ColumnDifference {
 
 		if ($before->isAutoIncrement !== $after->isAutoIncrement) {
 			$construct['isAutoIncrement'] = new Change($before->isAutoIncrement, $after->isAutoIncrement);
+		}
+
+		if ($before->isJson !== $after->isJson) {
+			$construct['isJson'] = new Change($before->isJson, $after->isJson);
 		}
 
 		return \count($construct) > 0
@@ -81,9 +78,6 @@ final class ColumnDifference {
 		/** @var ?Change<mixed> */
 		public readonly ?Change $defaultValue = null,
 
-		/** @var ?Change<?int> */
-		public readonly ?Change $characterCount = null,
-
 		/** @var ?Change<bool> */
 		public readonly ?Change $isUnsigned = null,
 
@@ -92,6 +86,9 @@ final class ColumnDifference {
 
 		/** @var ?Change<bool> */
 		public readonly ?Change $isAutoIncrement = null,
+
+		/** @var ?Change<bool> */
+		public readonly ?Change $isJson = null,
 
 	) { }
 

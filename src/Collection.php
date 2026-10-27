@@ -10,8 +10,8 @@ use Slendium\Ocd\Collection as ICollection;
 use Slendium\Ocd\Collection\WriteCommand;
 use Slendium\Ocd\Cursor\Filterable;
 use Slendium\Ocd\Cursor\Scrollable;
-use Slendium\Ocd\Predicate;
-use Slendium\Ocd\Update;
+use Slendium\Ocd\Query\Predicate;
+use Slendium\Ocd\Query\Update;
 
 /**
  * @internal

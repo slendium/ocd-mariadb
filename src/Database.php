@@ -2,12 +2,14 @@
 
 namespace Slendium\OcdMariaDb;
 
+use LogicException;
 use Override;
 use PDO;
 use SensitiveParameter;
 
 use Slendium\Ocd\Collection as ICollection;
 use Slendium\Ocd\Database as IDatabase;
+use Slendium\Ocd\Database\Feature;
 use Slendium\Ocd\Schema;
 
 /**
@@ -40,27 +42,57 @@ final class Database implements IDatabase {
 	}
 
 	#[Override]
-	public function enforceSchema(string $collection, Schema $schema): IDatabase\UpgradeCommand {
-		return new Database\EnforceSchemaCommand($this->pdo, $collection, $schema);
+	public function supports(Feature $feature): bool {
+		return match($feature) {
+			Feature::SchemaEnforcement => true,
+			Feature::CustomPrimary => true,
+			default => false,
+		};
 	}
 
 	#[Override]
-	public function listCollections(): iterable {
+	public function applySchema(string $collection, Schema $schema): IDatabase\UpgradeCommand {
+		return new Database\ApplySchemaCommand($this->pdo, $collection, $schema);
+	}
+
+	#[Override]
+	public function listCollections(): array {
+		$out = [ ];
 		foreach ($this->pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN, column: 0) as $name) { // @phpstan-ignore method.nonObject
 			/** @var non-empty-string $name */
-			yield $name => new Collection($this->pdo, $name);
+			$out[] = $name;
 		}
+		return $out;
+	}
+
+	#[Override]
+	public function hasCollection(string $collection): bool {
+		self::throwIfInvalidCollectionName($collection);
+
+		$stmt = $this->pdo->query("SHOW TABLES LIKE '$collection'");
+		return $stmt !== false && $stmt->fetchColumn() !== false;
 	}
 
 	#[Override]
 	public function getCollection(string $collection): ICollection {
+		self::throwIfInvalidCollectionName($collection);
+
 		return new Collection($this->pdo, $collection);
 	}
 
 	#[Override]
-	public function deleteCollection(string $collection): ICollection {
+	public function deleteCollection(string $collection): void {
+		self::throwIfInvalidCollectionName($collection);
+
 		$this->pdo->query("DROP TABLE $collection");
-		throw new \Exception('Not implemented');
+	}
+
+	private static function throwIfInvalidCollectionName(string $name): void {
+		for ($i = 0; $i < \strlen($name); $i += 1) {
+			if ($name[$i] === "'" || $name[$i] === "`") {
+				throw new LogicException("Illegal character {$name[$i]} in table name: $name");
+			}
+		}
 	}
 
 }

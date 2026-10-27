@@ -2,11 +2,13 @@
 
 namespace Slendium\OcdMariaDb\Database;
 
+use Slendium\Ocd\Entity;
 use Slendium\Ocd\Schema;
 use Slendium\Ocd\Schema\Field;
-use Slendium\Ocd\Schema\IdGenerator;
-use Slendium\Ocd\Schema\IdOptions;
+use Slendium\Ocd\Schema\Type;
 use Slendium\Ocd\Schema\TypeInfo;
+
+use Slendium\OcdMariaDb\Common\LiteralSqlizer;
 
 /**
  * @internal
@@ -15,43 +17,44 @@ use Slendium\Ocd\Schema\TypeInfo;
  */
 final readonly class ColumnDefinition {
 
-	/** @param array<mixed> $row */
-	public static function fromInformationSchemaRow(array $row): self {
+	/**
+	 * Creates the column definition from a `information_schema.columns` row.
+	 * @param array<mixed> $row
+	 */
+	public static function fromInformationSchemaRow(array $row, bool $isJson): self {
 		return new self(
 			name: $row['COLUMN_NAME'], // @phpstan-ignore argument.type
-			type: DataType::from($row['DATA_TYPE']), // @phpstan-ignore argument.type
+			type: DataTypeFactory::createFromInformationSchemaRow($row), // @phpstan-ignore argument.type
 			isNullable: $row['IS_NULLABLE'] === 'YES',
-			characterCount: $row['CHARACTER_MAXIMUM_LENGTH'] ?? null, // @phpstan-ignore argument.type
 			defaultValue: $row['COLUMN_DEFAULT'],
 			isPrimaryKey: $row['COLUMN_KEY'] === 'PRI',
-			isAutoIncrement: \str_contains($row['EXTRA'], 'auto_increment') // @phpstan-ignore argument.type
+			isAutoIncrement: \str_contains($row['EXTRA'], 'auto_increment'), // @phpstan-ignore argument.type
+			isJson: $isJson,
 		);
 	}
 
 	/** @return list<self> */
 	public static function createListFromSchema(Schema $schema): array {
-		$out = [ self::fromIdOptions($schema->idOptions) ];
+		$defs = [ ];
 		foreach ($schema->fields as $field) {
-			$out[] = self::fromField($field);
+			$defs[] = self::fromField($field, \in_array($field->name, $schema->primaries));
 		}
-		return $out;
+		return $defs;
 	}
 
-	public static function fromField(Field $field): self {
+	public static function fromField(Field $field, bool $isPrimary = false): self {
+		$serializeType = TypeInfo::getSerializeType($field->type::class);
+
 		return new self(
 			name: $field->name,
-			type: DataType::fromStorageClass(TypeInfo::getStorageClass(\get_class($field->type))),
-			isNullable: $field->nullable,
-			defaultValue: $field->defaultValue
+			type: DataTypeFactory::createFromSchemaType($field->type),
+			isNullable: $field->isNullable,
+			defaultValue: $field->defaultValue,
+			isUnsigned: $field->type instanceof Type\Unsigned,
+			isPrimaryKey: $isPrimary,
+			isAutoIncrement: $serializeType === Entity\SequentialValue::class,
+			isJson: $serializeType === 'array',
 		);
-	}
-
-	public static function fromIdOptions(IdOptions $idOptions): self {
-		return match($idOptions->generator) {
-			IdGenerator::None => new self('id', DataType::VarChar, characterCount: 255, isPrimaryKey: true),
-			IdGenerator::Sequence => new self('id', DataType::Int, isUnsigned: true, isPrimaryKey: true, isAutoIncrement: true),
-			IdGenerator::UniqueIdentifier => new self('id', DataType::Uuid, isPrimaryKey: true)
-		};
 	}
 
 	public function __construct(
@@ -65,13 +68,13 @@ final readonly class ColumnDefinition {
 
 		public mixed $defaultValue = null,
 
-		public ?int $characterCount = null,
-
 		public bool $isUnsigned = false,
 
 		public bool $isPrimaryKey = false,
 
 		public bool $isAutoIncrement = false,
+
+		public bool $isJson = false,
 
 	) { }
 
@@ -84,18 +87,19 @@ final readonly class ColumnDefinition {
 		return $out;
 	}
 
-	/**
-	 * @param ?int $characterCount Allows overriding the target character count of varchars to prevent
-	 *  truncation of data
-	 * @return non-empty-string
-	 */
-	public function toModifySql(?int $characterCount = null): string {
-		return 'MODIFY '.$this->toBaseSql($characterCount);
+	/** @return non-empty-string */
+	public function toModifySql(): string {
+		return 'MODIFY '.$this->toBaseSql();
 	}
 
 	/** @return non-empty-string */
-	private function toBaseSql(?int $characterCount = null): string {
-		$out = "`{$this->name}` ".$this->type->toSql($characterCount ?? $this->characterCount);
+	private function toBaseSql(): string {
+		$out = "`{$this->name}`";
+
+		$out .= $this->isJson
+			? ' JSON'
+			: $this->type->toSql();
+
 		if ($this->isUnsigned) {
 			$out .= ' UNSIGNED';
 		}
@@ -105,14 +109,19 @@ final readonly class ColumnDefinition {
 			: ' NOT NULL';
 
 		if (\is_scalar($this->defaultValue)) {
-			$out .= " DEFAULT '{$this->defaultValue}'";
-		} else if ($this->type === DataType::Uuid) {
+			$out .= ' DEFAULT '.LiteralSqlizer::formatValue($this->defaultValue);
+		} else if ($this->type instanceof DataType\Uuid) {
 			$out .= ' DEFAULT UUID()';
 		}
 
 		if ($this->isAutoIncrement) {
 			$out .= ' AUTO_INCREMENT';
 		}
+
+		if ($this->isJson) {
+			$out .= " CHECK (JSON_VALID(`{$this->name}`))";
+		}
+
 		return $out;
 	}
 
