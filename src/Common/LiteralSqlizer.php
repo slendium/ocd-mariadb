@@ -28,7 +28,7 @@ final class LiteralSqlizer {
 
 	const NULL = 'NULL';
 
-	private const DATETIME_FORMAT = 'Y-m-d H:i:s';
+	const DATETIME_FORMAT = 'Y-m-d H:i:s';
 
 	/** @return non-empty-string */
 	public static function formatValue(mixed $value): string {
