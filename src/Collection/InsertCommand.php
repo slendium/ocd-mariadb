@@ -8,39 +8,34 @@ use Override;
 use PDO;
 use Traversable;
 
-use Slendium\Ocd\Collection\WriteCommand;
-use Slendium\Ocd\Collection\WriteOptions;
-
 /**
  * @internal
  * @author C. Fahner
  * @copyright Slendium 2026
  */
-final readonly class InsertCommand implements WriteCommand {
+final class InsertCommand extends BaseWriteCommand {
 
-	#[Override]
-	public WriteOptions $writeOptions;
-
+	/** @param non-empty-string $table */
 	public function __construct(
 
-		private PDO $pdo,
+		PDO $pdo,
 
-		/** @var non-empty-string */
-		private string $table,
+		string $table,
 
 		/** @var non-empty-list<ArrayAccess<non-empty-string,mixed>&Countable&Traversable<non-empty-string,mixed>> */
-		private array $documents,
+		private readonly array $documents,
 
 	) {
-		$this->writeOptions = new WriteOptions;
+		parent::__construct($pdo, $table);
 	}
 
 	#[Override]
 	public function execute(): void {
 		foreach ($this->documents as $document) {
-			$insert = InsertQuery::create($this->table, $document);
-			$this->pdo->prepare($insert->query)
-				->execute($insert->parameters);
+			$insert = Query::insert($this->table, $document);
+
+			$this->pdo->prepare($insert->sql)
+				->execute($insert->arguments);
 		}
 	}
 

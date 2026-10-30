@@ -31,7 +31,7 @@ final readonly class Collection implements ICollection {
 
 	#[Override]
 	public function openCursor(): Filterable&Scrollable&Traversable {
-		throw new \Exception('Not implemented');
+		return new Collection\Cursor($this->pdo, $this->name); // @phpstan-ignore return.type (generics shenanigans)
 	}
 
 	#[Override]
@@ -41,7 +41,7 @@ final readonly class Collection implements ICollection {
 
 	#[Override]
 	public function startUpdate(Predicate $filter, array $updates): WriteCommand {
-		throw new \Exception('Not implemented');
+		return new Collection\UpdateCommand($this->pdo, $this->name, $filter, $updates);
 	}
 
 	#[Override]

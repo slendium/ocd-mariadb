@@ -15,12 +15,16 @@ use Slendium\Ocd\Query\PredicateVisitor;
  */
 final class PredicateSqlizer extends Sqlizer implements PredicateVisitor {
 
+	const ARGUMENT_PREFIX = 'p';
+
 	public function __construct(
 
 		/** @var non-empty-string */
 		private string $tableName,
 
-	) { }
+	) {
+		parent::__construct(self::ARGUMENT_PREFIX);
+	}
 
 	#[Override]
 	public function visitAnd(Predicate\And_ $expr): string {

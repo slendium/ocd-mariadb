@@ -7,7 +7,6 @@ use Countable;
 use IteratorAggregate;
 use Override;
 use PDO;
-use RuntimeException;
 use Traversable;
 
 use Slendium\Ocd\Cursor\Countable as CursorCountable;

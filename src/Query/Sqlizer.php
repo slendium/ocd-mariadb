@@ -72,12 +72,19 @@ abstract class Sqlizer {
 		return LiteralSqlizer::NULL;
 	}
 
+	public function __construct(
+
+		/** @var non-empty-string */
+		private string $argumentPrefix = 'a',
+
+	) { }
+
 	/**
 	 * @param mixed $value The argument value
 	 * @return non-empty-string The argument name
 	 */
 	protected final function addArgument(mixed $value): string {
-		$name = 'a'.\count($this->arguments);
+		$name = $this->argumentPrefix.\count($this->arguments);
 		$this->arguments[$name] = $value;
 		return $name;
 	}
