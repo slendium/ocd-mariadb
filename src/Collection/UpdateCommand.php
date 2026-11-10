@@ -22,7 +22,7 @@ final class UpdateCommand extends BaseWriteCommand {
 
 		string $table,
 
-		private readonly Predicate $predicate,
+		private readonly Predicate $filter,
 
 		/** @var non-empty-list<Update> */
 		private readonly array $updates,
@@ -33,7 +33,7 @@ final class UpdateCommand extends BaseWriteCommand {
 
 	#[Override]
 	public function execute(): void {
-		$update = Query::update($this->table, $this->updates, $this->predicate);
+		$update = Query::update($this->table, $this->updates, $this->filter);
 
 		$this->pdo->prepare($update->sql)
 			->execute($update->arguments);

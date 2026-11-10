@@ -46,7 +46,7 @@ final readonly class Collection implements ICollection {
 
 	#[Override]
 	public function startDelete(Predicate $filter): WriteCommand {
-		throw new \Exception('Not implemented');
+		return new Collection\DeleteCommand($this->pdo, $tis->name, $filter);
 	}
 
 }

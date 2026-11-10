@@ -50,13 +50,20 @@ final readonly class Query {
 
 	/**
 	 * @param non-empty-string $table
-	 * @param non-empty-list<Update> $updates
+	 * @param non-empty-list<Update> $set
 	 */
-	public static function update(string $table, array $updates, Predicate $predicate): self {
-		[ $setClause, $setArgs ] = (new UpdateSqlizer)->sqlize($updates);
-		[ $whereClause, $whereArgs ] = new PredicateSqlizer($table)->sqlize($predicate);
+	public static function update(string $table, array $set, Predicate $where): self {
+		[ $setClause, $setArgs ] = (new UpdateSqlizer)->sqlize($set);
+		[ $whereClause, $whereArgs ] = new PredicateSqlizer($table)->sqlize($where);
 
 		return new self("UPDATE `$table` SET $setClause WHERE $whereClause", [ ...$setArgs, ...$whereArgs ]);
+	}
+
+	/** @param non-empty-string $table */
+	public static function delete(string $table, Predicate $where): self {
+		[ $whereClause, $whereArgs ] = new PredicateSqlizer($table)->sqlize($where);
+
+		return new self("DELETE FROM `$table` WHERE $whereClause", $whereArgs);
 	}
 
 	private function __construct(
