@@ -23,6 +23,7 @@ use Slendium\OcdMariaDb\Database\DataType\Int_;
 use Slendium\OcdMariaDb\Database\DataType\MediumInt;
 use Slendium\OcdMariaDb\Database\DataType\SmallInt;
 use Slendium\OcdMariaDb\Database\DataType\TinyInt;
+use Slendium\OcdMariaDb\InfoSchema\Column;
 
 /**
  * @internal
@@ -31,22 +32,9 @@ use Slendium\OcdMariaDb\Database\DataType\TinyInt;
  */
 final class DataTypeFactory {
 
-	/**
-	 * Creates a DataType instance from an `information_schema.columns` row.
-	 *
-	 * * DATA_TYPE contains the bare name, such as `varchar` for `varchar(200)`
-	 * * COLUMN_TYPE contains the parameterized name, such as `float(10,5)`
-	 *
-	 * @param array{
-	 *  DATA_TYPE: non-empty-string,
-	 *  CHARACTER_MAXIMUM_LENGTH: ?int<0,65532>,
-	 *  DATETIME_PRECISION: ?int<0,6>,
-	 *  COLUMN_TYPE: non-empty-string
-	 * } $row
-	 */
-	public static function createFromInformationSchemaRow(array $row): DataType {
-		return match($row['DATA_TYPE']) {
-			DataType\VarChar::NAME => new DataType\VarChar($row['CHARACTER_MAXIMUM_LENGTH'] ?? 255),
+	public static function createFromInfoSchema(Column $column): DataType {
+		return match($column->DATA_TYPE) {
+			DataType\VarChar::NAME => new DataType\VarChar($column->characterLimit ?? 255),
 			DataType\Uuid::NAME => DataType\Uuid::instance(),
 			DataType\TinyBlob::NAME => DataType\TinyBlob::instance(),
 			DataType\Blob::NAME => DataType\Blob::instance(),
@@ -56,8 +44,8 @@ final class DataTypeFactory {
 			DataType\Text::NAME => DataType\Text::instance(),
 			DataType\MediumText::NAME => DataType\MediumText::instance(),
 			DataType\LongText::NAME => DataType\LongText::instance(),
-			DataType\DateTime::NAME => new DataType\DateTime($row['DATETIME_PRECISION'] ?? 0),
-			default => self::createFromColumnType($row['COLUMN_TYPE'])
+			DataType\DateTime::NAME => new DataType\DateTime($column->dateTimePrecision ?? 0),
+			default => self::createFromColumnType($column->COLUMN_TYPE)
 		};
 	}
 

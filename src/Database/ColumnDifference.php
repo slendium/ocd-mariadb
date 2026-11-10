@@ -3,16 +3,20 @@
 namespace Slendium\OcdMariaDb\Database;
 
 use LogicException;
+use Override;
+
+use Slendium\OcdMariaDb\Common\Diff;
 
 /**
  * @internal
+ * @implements Diff\ObjectDiff<ColumnDefinition>
  * @author C. Fahner
  * @copyright Slendium 2026
  */
-final class ColumnDifference {
+final class ColumnDifference implements Diff\ObjectDiff {
 
 	public string $name {
-		get => $this->columnAfter->name;
+		get => $this->after->name;
 	}
 
 	public bool $isTypeChange {
@@ -23,72 +27,68 @@ final class ColumnDifference {
 		get => $this->type !== null && !$this->type->before->fitsIn($this->type->after);
 	}
 
-	public static function tryCreate(ColumnDefinition $before, ColumnDefinition $after): ?self {
+	#[Override]
+	public static function diff(object $before, object $after): ?self {
 		if ($before->name !== $after->name) {
-			throw new LogicException('Expected names of old and new column definition to be the same');
+			throw new LogicException("Expected columns to have the same name, not `{$before->name}` and `{$after->name}`");
 		}
 
-		$construct = [ ];
+		$construct = [ 'before' => $before, 'after' => $after ];
 
 		if ($before->type->toSql() !== $after->type->toSql()) {
-			$construct['type'] = new Change($before->type, $after->type);
+			$construct['type'] = new Diff\ChangedValue($before->type, $after->type);
 		}
 
 		if ($before->isNullable !== $after->isNullable) {
-			$construct['isNullable'] = new Change($before->isNullable, $after->isNullable);
+			$construct['isNullable'] = new Diff\ChangedValue($before->isNullable, $after->isNullable);
 		}
 
 		if ($before->defaultValue !== $after->defaultValue) {
-			$construct['defaultValue'] = new Change($before->defaultValue, $after->defaultValue);
+			$construct['defaultValue'] = new Diff\ChangedValue($before->defaultValue, $after->defaultValue);
 		}
 
 		if ($before->isUnsigned !== $after->isUnsigned) {
-			$construct['isUnsigned'] = new Change($before->isUnsigned, $after->isUnsigned);
-		}
-
-		if ($before->isPrimaryKey !== $after->isPrimaryKey) {
-			$construct['isPrimaryKey'] = new Change($before->isPrimaryKey, $after->isPrimaryKey);
+			$construct['isUnsigned'] = new Diff\ChangedValue($before->isUnsigned, $after->isUnsigned);
 		}
 
 		if ($before->isAutoIncrement !== $after->isAutoIncrement) {
-			$construct['isAutoIncrement'] = new Change($before->isAutoIncrement, $after->isAutoIncrement);
+			$construct['isAutoIncrement'] = new Diff\ChangedValue($before->isAutoIncrement, $after->isAutoIncrement);
 		}
 
 		if ($before->isJson !== $after->isJson) {
-			$construct['isJson'] = new Change($before->isJson, $after->isJson);
+			$construct['isJson'] = new Diff\ChangedValue($before->isJson, $after->isJson);
 		}
 
-		return \count($construct) > 0
-			? new self(...[ 'columnBefore' => $before, 'columnAfter' => $after, ...$construct ])
+		return \count($construct) > 2
+			? new self(...$construct)
 			: null;
 	}
 
 	public function __construct(
 
-		public readonly ColumnDefinition $columnBefore,
+		#[Override]
+		public readonly ColumnDefinition $before,
 
-		public readonly ColumnDefinition $columnAfter,
+		#[Override]
+		public readonly ColumnDefinition $after,
 
-		/** @var ?Change<DataType> */
-		public readonly ?Change $type = null,
+		/** @var ?Diff<DataType> */
+		public readonly ?Diff $type = null,
 
-		/** @var ?Change<bool> */
-		public readonly ?Change $isNullable = null,
+		/** @var ?Diff<bool> */
+		public readonly ?Diff $isNullable = null,
 
-		/** @var ?Change<mixed> */
-		public readonly ?Change $defaultValue = null,
+		/** @var ?Diff<mixed> */
+		public readonly ?Diff $defaultValue = null,
 
-		/** @var ?Change<bool> */
-		public readonly ?Change $isUnsigned = null,
+		/** @var ?Diff<bool> */
+		public readonly ?Diff $isUnsigned = null,
 
-		/** @var ?Change<bool> */
-		public readonly ?Change $isPrimaryKey = null,
+		/** @var ?Diff<bool> */
+		public readonly ?Diff $isAutoIncrement = null,
 
-		/** @var ?Change<bool> */
-		public readonly ?Change $isAutoIncrement = null,
-
-		/** @var ?Change<bool> */
-		public readonly ?Change $isJson = null,
+		/** @var ?Diff<bool> */
+		public readonly ?Diff $isJson = null,
 
 	) { }
 

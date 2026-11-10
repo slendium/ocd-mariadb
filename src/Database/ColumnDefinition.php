@@ -2,47 +2,47 @@
 
 namespace Slendium\OcdMariaDb\Database;
 
+use Override;
+
 use Slendium\Ocd\Entity;
 use Slendium\Ocd\Schema;
 use Slendium\Ocd\Schema\Field;
 use Slendium\Ocd\Schema\Type;
 use Slendium\Ocd\Schema\TypeInfo;
 
+use Slendium\OcdMariaDb\Common\Diff;
 use Slendium\OcdMariaDb\Common\LiteralSqlizer;
+use Slendium\OcdMariaDb\InfoSchema;
 
 /**
  * @internal
  * @author C. Fahner
  * @copyright Slendium 2026
  */
-final readonly class ColumnDefinition {
+final class ColumnDefinition implements Diff\Identifiable {
 
-	/**
-	 * Creates the column definition from a `information_schema.columns` row.
-	 * @param array<mixed> $row
-	 */
-	public static function fromInformationSchemaRow(array $row, bool $isJson): self {
+	#[Override]
+	public string $identity {
+		get => $this->name;
+	}
+
+	public static function fromInfoSchema(InfoSchema\Column $column, bool $isJson): self {
 		return new self(
-			name: $row['COLUMN_NAME'], // @phpstan-ignore argument.type
-			type: DataTypeFactory::createFromInformationSchemaRow($row), // @phpstan-ignore argument.type
-			isNullable: $row['IS_NULLABLE'] === 'YES',
-			defaultValue: $row['COLUMN_DEFAULT'],
-			isPrimaryKey: $row['COLUMN_KEY'] === 'PRI',
-			isAutoIncrement: \str_contains($row['EXTRA'], 'auto_increment'), // @phpstan-ignore argument.type
+			name: $column->COLUMN_NAME,
+			type: DataTypeFactory::createFromInfoSchema($column),
+			isNullable: $column->isNullable,
+			defaultValue: $column->COLUMN_DEFAULT,
+			isAutoIncrement: $column->isAutoIncrement,
 			isJson: $isJson,
 		);
 	}
 
 	/** @return list<self> */
 	public static function createListFromSchema(Schema $schema): array {
-		$defs = [ ];
-		foreach ($schema->fields as $field) {
-			$defs[] = self::fromField($field, \in_array($field->name, $schema->primaries));
-		}
-		return $defs;
+		return \array_values(\array_map(self::fromField(...), $schema->fields));
 	}
 
-	public static function fromField(Field $field, bool $isPrimary = false): self {
+	public static function fromField(Field $field): self {
 		$serializeType = TypeInfo::getSerializeType($field->type::class);
 
 		return new self(
@@ -51,7 +51,6 @@ final readonly class ColumnDefinition {
 			isNullable: $field->isNullable,
 			defaultValue: $field->defaultValue,
 			isUnsigned: $field->type instanceof Type\Unsigned,
-			isPrimaryKey: $isPrimary,
 			isAutoIncrement: $serializeType === Entity\SequentialValue::class,
 			isJson: $serializeType === 'array',
 		);
@@ -60,40 +59,29 @@ final readonly class ColumnDefinition {
 	public function __construct(
 
 		/** @var non-empty-string */
-		public string $name,
+		public readonly string $name,
 
-		public DataType $type,
+		public readonly DataType $type,
 
-		public bool $isNullable = false,
+		public readonly bool $isNullable = false,
 
-		public mixed $defaultValue = null,
+		public readonly mixed $defaultValue = null,
 
-		public bool $isUnsigned = false,
+		public readonly bool $isUnsigned = false,
 
-		public bool $isPrimaryKey = false,
+		public readonly bool $isAutoIncrement = false,
 
-		public bool $isAutoIncrement = false,
-
-		public bool $isJson = false,
+		public readonly bool $isJson = false,
 
 	) { }
 
 	/** @return non-empty-string */
-	public function toCreateSql(): string {
-		$out = $this->toBaseSql();
-		if ($this->isPrimaryKey) {
-			$out .= ' PRIMARY KEY';
-		}
-		return $out;
-	}
-
-	/** @return non-empty-string */
 	public function toModifySql(): string {
-		return 'MODIFY '.$this->toBaseSql();
+		return 'MODIFY '.$this->toCreateSql();
 	}
 
 	/** @return non-empty-string */
-	private function toBaseSql(): string {
+	public function toCreateSql(): string {
 		$out = "`{$this->name}`";
 
 		$out .= $this->isJson

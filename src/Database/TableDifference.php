@@ -2,76 +2,67 @@
 
 namespace Slendium\OcdMariaDb\Database;
 
-use Slendium\Ocd\Schema\DefinitionException;
+use LogicException;
+use Override;
+
+use Slendium\OcdMariaDb\Common\Diff;
+use Slendium\OcdMariaDb\Common\TableKey;
 
 /**
  * @internal
+ * @implements Diff\ObjectDiff<TableDefinition>
  * @author C. Fahner
  * @copyright Slendium 2026
  */
-final readonly class TableDifference {
+final class TableDifference implements Diff\ObjectDiff {
 
-	/**
-	 * @param iterable<ColumnDefinition> $source
-	 * @param iterable<ColumnDefinition> $target
-	 */
-	public static function create(iterable $source, iterable $target): self {
-		$sourceMap = [ ];
-		$drops = [ ];
-		$oldPrimaryKey = null;
-		$newPrimaryKey = null;
+	/** @var non-empty-string */
+	public string $name {
+		get => $this->after->name;
+	}
 
-		foreach ($source as $col) {
-			$sourceMap[$col->name] = $col;
-			$drops[$col->name] = true;
-			if ($col->isPrimaryKey) {
-				$oldPrimaryKey = $col->name;
-			}
+	#[Override]
+	public static function diff(object $before, object $after): ?self {
+		if ($before->name !== $after->name) {
+			throw new LogicException("Expected tables to have the same name, not `{$before->name}` and `{$after->name}`");
 		}
 
-		$additions = [ ];
-		$differences = [ ];
+		$construct = [ 'before' => $before, 'after' => $after ];
 
-		$previousName = null;
-		foreach ($target as $col) {
-			if (isset($sourceMap[$col->name])) {
-				unset($drops[$col->name]);
-				$diff = ColumnDifference::tryCreate($sourceMap[$col->name], $col);
-				if ($diff !== null) {
-					$differences[] = $diff;
-				}
-			} else {
-				$additions[] = new ColumnAddition($col, $previousName);
-			}
-			$previousName = $col->name;
-
-			if ($col->isPrimaryKey) {
-				$newPrimaryKey = $newPrimaryKey === null
-					? $col->name
-					: throw new DefinitionException('Expected only one primary key in the new collection definition');
-			}
+		if ($before->primaryKey?->__toString() !== $after->primaryKey?->__toString()) {
+			$construct['primaryKey'] = new Diff\ChangedValue($before->primaryKey, $after->primaryKey);
 		}
 
-		$primaryKeyChange = $oldPrimaryKey !== $newPrimaryKey
-			? new Change($oldPrimaryKey, $newPrimaryKey)
+		if ($before->autoIncrement !== $after->autoIncrement) {
+			$construct['autoIncrement'] = new Diff\ChangedValue($before->autoIncrement, $after->autoIncrement);
+		}
+
+		$columnDiff = Diff\ListDifference::create($before->columns, $after->columns, ColumnDifference::class);
+		if ($columnDiff !== null) {
+			$construct['columns'] = $columnDiff;
+		}
+
+		return \count($construct) > 2
+			? new self(...$construct)
 			: null;
-
-		return new self($additions, $differences, \array_keys($drops), $primaryKeyChange);
 	}
 
 	private function __construct(
 
-		/** @var list<ColumnAddition> */
-		public array $additions,
+		#[Override]
+		public readonly TableDefinition $before,
 
-		/** @var list<ColumnDifference> */
-		public array $differences,
+		#[Override]
+		public readonly TableDefinition $after,
 
-		/** @var list<non-empty-string> */
-		public array $drops,
+		/** @var ?Diff<?TableKey> */
+		public readonly ?Diff $primaryKey = null,
 
-		/** @var ?Change<?non-empty-string> */
-		public ?Change $primaryKeyChange = null,
+		/** @var ?Diff<?string> */
+		public readonly ?Diff $autoIncrement = null,
+
+		/** @var ?Diff\ListDifference<ColumnDefinition,ColumnDifference> */
+		public readonly ?Diff\ListDifference $columns = null,
 
 	) { }
 

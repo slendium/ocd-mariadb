@@ -2,9 +2,10 @@
 
 namespace Slendium\OcdMariaDb\Database;
 
-use Closure;
-
 use Slendium\Ocd\Database\UpgradeOptions;
+
+use Slendium\OcdMariaDb\Common\Diff;
+use Slendium\OcdMariaDb\Common\TableKey;
 
 /**
  * @internal
@@ -14,84 +15,83 @@ use Slendium\Ocd\Database\UpgradeOptions;
 final class AlterTableBuilder {
 
 	/** @var list<non-empty-string> */
-	private array $addColumns = [ ];
+	private array $alterations = [ ];
 
 	/** @var list<non-empty-string> */
-	private array $truncateColumns = [ ];
+	private array $truncations = [ ];
 
-	/** @var list<non-empty-string> */
-	private array $modifyColumns = [ ];
+	/** @return iterable<non-empty-string> */
+	public static function createQueries(TableDifference $diff, UpgradeOptions $options): iterable {
+		$builder = new self($options);
 
-	/** @var list<non-empty-string> */
-	private array $dropColumns = [ ];
-
-	/** @var ?Change<?non-empty-string> */
-	private ?Change $primaryKeyChange = null;
-
-	public function __construct(
-
-		private string $table,
-
-		private UpgradeOptions $upgradeOptions,
-
-	) { }
-
-	public function applyTableDifference(TableDifference $diff): void {
-		foreach ($diff->additions as $addition) {
-			$this->addColumns[] = $addition->toAddColumnSql();
+		if ($diff->primaryKey !== null) {
+			$builder->addPrimaryKey($diff->primaryKey);
 		}
 
-		foreach ($diff->differences as $columnDiff) {
-			$this->alterColumn($columnDiff);
-		}
-
-		if ($this->upgradeOptions->allowLoss) {
-			foreach ($diff->drops as $columnName) {
-				$this->dropColumns[] = "DROP COLUMN `$columnName`";
+		if ($diff->columns !== null) {
+			foreach ($diff->columns->additions as $addn) {
+				$builder->addColumn($addn);
+			}
+			foreach ($diff->columns->modifications as $modifn) {
+				$builder->alterColumn($diff->name, $modifn);
+			}
+			foreach ($diff->columns->deletions as $deln) {
+				$builder->dropColumn($deln);
 			}
 		}
 
-		$this->primaryKeyChange = $diff->primaryKeyChange;
+		yield from $builder->truncations;
+		yield "ALTER TABLE `{$diff->name}` ".\implode(', ', $builder->alterations);
 	}
 
-	/**
-	 * Returns all SQL queries that need to be executed (in the given order) for the table alteration.
-	 * @return iterable<non-empty-string>
-	 */
-	public function toSql(): iterable {
-		yield from $this->truncateColumns;
+	private function __construct(private UpgradeOptions $options) { }
 
-		$alterSpecs = [ ...$this->addColumns, ...$this->modifyColumns, ...$this->dropColumns ];
-
-		if ($this->primaryKeyChange !== null) {
-			$alterSpecs[] = 'DROP PRIMARY KEY';
-			if ($this->primaryKeyChange->after !== null) {
-				$alterSpecs[] = "ADD PRIMARY KEY (`{$this->primaryKeyChange->after}`)";
-			}
+	/** @param Diff<?TableKey> $diff */
+	private function addPrimaryKey(Diff $diff): void {
+		if ($diff->before !== null) {
+			$this->alterations[] = 'DROP PRIMARY KEY';
 		}
 
-		yield "ALTER TABLE {$this->table} ".\implode(', ', $alterSpecs);
+		if ($diff->after !== null) {
+			$this->alterations[] = "ADD PRIMARY KEY ({$diff->after})";
+		}
 	}
 
-	private function alterColumn(ColumnDifference $diff): void {
+	/** @param Diff\ListAddition<ColumnDefinition> $addition */
+	private function addColumn(Diff\ListAddition $addition): void {
+		$alter = "ADD COLUMN {$addition->item->toCreateSql()}";
+		$alter .= $addition->after !== null
+			? " AFTER `{$addition->after}`"
+			: ' FIRST';
+
+		$this->alterations[] = $alter;
+	}
+
+	private function alterColumn(string $table, ColumnDifference $diff): void {
 		if ($diff->isTypeChange) {
 			throw new \Exception('Not implemented');
 		}
 
 		if (!$diff->isDataLoss) {
-			$this->modifyColumns[] = $diff->columnAfter->toModifySql();
+			$this->alterations[] = $diff->after->toModifySql();
 			return;
 		}
 
-		if (!$this->upgradeOptions->allowLoss) {
+		if (!$this->options->allowLoss) {
 			return;
 		}
 
-		if ($diff->columnAfter->type instanceof DataType\Textual) {
-			$chars = $diff->columnAfter->type->characterLimit;
-			$this->truncateColumns[] = "UPDATE {$this->table} SET `{$diff->name}` = LEFT(`{$diff->name}`, {$chars})";
+		if ($diff->after->type instanceof DataType\Textual) {
+			$chars = $diff->after->type->characterLimit;
+			$this->truncations[] = "UPDATE `$table` SET `{$diff->name}` = LEFT(`{$diff->name}`, {$chars})";
 		}
-		$this->modifyColumns[] = $diff->columnAfter->toModifySql();
+		$this->alterations[] = $diff->after->toModifySql();
+	}
+
+	private function dropColumn(string $name): void {
+		if ($this->options->allowLoss) {
+			$this->alterations[] = "DROP COLUMN `$name`";
+		}
 	}
 
 }
