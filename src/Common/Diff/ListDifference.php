@@ -27,7 +27,7 @@ final readonly class ListDifference {
 
 		foreach ($before as $item) {
 			$beforeMap[$item->identity] = $item;
-			$deletions[$item->identity] = true;
+			$deletions[$item->identity] = $item;
 		}
 
 		$additions = [ ];
@@ -48,7 +48,7 @@ final readonly class ListDifference {
 		}
 
 		return \count($additions) > 0 || \count($modifications) > 0 || \count($deletions) > 0
-			? new self($additions, $modifications, \array_keys($deletions))
+			? new self($additions, $modifications, \array_values($deletions))
 			: null;
 	}
 
@@ -60,7 +60,7 @@ final readonly class ListDifference {
 		/** @var list<TDiff> */
 		public array $modifications,
 
-		/** @var list<string> */
+		/** @var list<TItem> */
 		public array $deletions,
 
 	) { }

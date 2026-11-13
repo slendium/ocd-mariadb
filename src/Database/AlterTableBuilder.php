@@ -29,15 +29,11 @@ final class AlterTableBuilder {
 		}
 
 		if ($diff->columns !== null) {
-			foreach ($diff->columns->additions as $addn) {
-				$builder->addColumn($addn);
-			}
-			foreach ($diff->columns->modifications as $modifn) {
-				$builder->alterColumn($diff->name, $modifn);
-			}
-			foreach ($diff->columns->deletions as $deln) {
-				$builder->dropColumn($deln);
-			}
+			$builder->applyColumnsDiff($diff->name, $diff->columns);
+		}
+
+		if ($diff->indexes !== null) {
+			$builder->applyIndexesDiff($diff->indexes);
 		}
 
 		yield from $builder->truncations;
@@ -54,6 +50,19 @@ final class AlterTableBuilder {
 
 		if ($diff->after !== null) {
 			$this->alterations[] = "ADD PRIMARY KEY ({$diff->after})";
+		}
+	}
+
+	/** @param Diff\ListDifference<ColumnDefinition,ColumnDifference> $diff */
+	private function applyColumnsDiff(string $tableName, Diff\ListDifference $diff): void {
+		foreach ($diff->additions as $add) {
+			$this->addColumn($add);
+		}
+		foreach ($diff->modifications as $columnDiff) {
+			$this->alterColumn($tableName, $columnDiff);
+		}
+		foreach ($diff->deletions as $column) {
+			$this->dropColumn($column->name);
 		}
 	}
 
@@ -91,6 +100,21 @@ final class AlterTableBuilder {
 	private function dropColumn(string $name): void {
 		if ($this->options->allowLoss) {
 			$this->alterations[] = "DROP COLUMN `$name`";
+		}
+	}
+
+	/** @param Diff\ListDifference<IndexDefinition,IndexDifference> $diff */
+	private function applyIndexesDiff(Diff\ListDifference $diff): void {
+		foreach ($diff->additions as $add) {
+			$this->alterations[] = $add->item->toAlterTableAddClause();
+		}
+		foreach ($diff->modifications as $modif) {
+			foreach ($modif->toAlterTableClauses() as $clause) {
+				$this->alterations[] = $clause;
+			}
+		}
+		foreach ($diff->deletions as $deletion) {
+			$this->alterations[] = $deletion->toAlterTableDropClause();
 		}
 	}
 

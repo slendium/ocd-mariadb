@@ -37,12 +37,10 @@ final class TableIndexes {
 
 	private function get_primaryKey(): ?TableKey {
 		$primaries = \array_filter($this->indexes, fn($index) => $index->isPrimary);
-		if (\count($primaries) < 1) {
-			return null;
-		}
 
-		\usort($primaries, fn($a, $b) => $a->Seq_in_index <=> $b->Seq_in_index);
-		return new TableKey(\array_map(fn($index) => $index->Column_name, $primaries));
+		return \count($primaries) > 0
+			? TableKeyFactory::createFromIndexes(\array_values($primaries))
+			: null;
 	}
 
 }

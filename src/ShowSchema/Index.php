@@ -17,6 +17,10 @@ final class Index {
 		get => $this->Key_name === self::PRIMARY_KEY_NAME;
 	}
 
+	public bool $isUnique {
+		get => $this->Non_unique === '0';
+	}
+
 	public function __construct(
 
 		/** @var '1'|'0' */

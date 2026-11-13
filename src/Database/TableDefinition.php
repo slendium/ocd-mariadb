@@ -44,8 +44,11 @@ final readonly class TableDefinition {
 			}
 		}
 
+		$tableIndexes = TableIndexes::fetch($pdo, $name);
+		$indexDefinitions = IndexDefinition::fromTableIndexes($tableIndexes);
+
 		return \count($columnDefinitions) > 0
-			? new self($name, TableIndexes::fetch($pdo, $name)->primaryKey, $autoIncrement, $columnDefinitions)
+			? new self($name, $tableIndexes->primaryKey, $autoIncrement, $columnDefinitions, $indexDefinitions)
 			: null;
 	}
 
@@ -72,7 +75,18 @@ final readonly class TableDefinition {
 		$primaryKey = \count($schema->primaries) > 0
 			? new TableKey(\array_map(fn($f) => $f->name, $schema->primaries))
 			: null;
-		return new self($name, $primaryKey, $autoIncrement, $columnDefinitions);
+
+		$indexDefinitions = [ ];
+		foreach ($schema->indexes as $index) {
+			$indexDefinitions[] = IndexDefinition::fromSchema($index);
+		}
+		foreach ($schema->constraints as $constraint) {
+			if ($constraint instanceof Schema\Constraint\Unique) {
+				$indexDefinitions[] = IndexDefinition::fromSchema($constraint);
+			}
+		}
+
+		return new self($name, $primaryKey, $autoIncrement, $columnDefinitions, $indexDefinitions);
 	}
 
 	public function __construct(
@@ -87,12 +101,19 @@ final readonly class TableDefinition {
 		/** @var non-empty-list<ColumnDefinition> */
 		public array $columns,
 
+		/** @var list<IndexDefinition> */
+		public array $indexes,
+
 	) { }
 
 	public function toCreateSql(): string {
 		$definitions = \array_map(fn($col) => $col->toCreateSql(), $this->columns);
 		if ($this->primaryKey !== null) {
 			$definitions[] = "PRIMARY KEY ({$this->primaryKey})";
+		}
+
+		foreach ($this->indexes as $index) {
+			$definitions[] = $index->toCreateTableClause();
 		}
 
 		$definitions = \implode(', ', $definitions);

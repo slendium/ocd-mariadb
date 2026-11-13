@@ -37,9 +37,14 @@ final class TableDifference implements Diff\ObjectDiff {
 			$construct['autoIncrement'] = new Diff\ChangedValue($before->autoIncrement, $after->autoIncrement);
 		}
 
-		$columnDiff = Diff\ListDifference::create($before->columns, $after->columns, ColumnDifference::class);
-		if ($columnDiff !== null) {
-			$construct['columns'] = $columnDiff;
+		$columnsDiff = Diff\ListDifference::create($before->columns, $after->columns, ColumnDifference::class);
+		if ($columnsDiff !== null) {
+			$construct['columns'] = $columnsDiff;
+		}
+
+		$indexesDiff = Diff\ListDifference::create($before->indexes, $after->indexes, IndexDifference::class);
+		if ($indexesDiff !== null) {
+			$construct['indexes'] = $indexesDiff;
 		}
 
 		return \count($construct) > 2
@@ -63,6 +68,9 @@ final class TableDifference implements Diff\ObjectDiff {
 
 		/** @var ?Diff\ListDifference<ColumnDefinition,ColumnDifference> */
 		public readonly ?Diff\ListDifference $columns = null,
+
+		/** @var ?Diff\ListDifference<IndexDefinition,IndexDifference> */
+		public readonly ?Diff\ListDifference $indexes = null,
 
 	) { }
 
